@@ -1,7 +1,7 @@
 ﻿using Xunit;
 using System.Threading.Tasks;
 using WeatherService.Services;
-using WeatherService.Models;
+using WeatherService.Exceptions; // For LocationNotFoundException
 using Microsoft.Extensions.Configuration;
 using RichardSzalay.MockHttp;
 using System.Net.Http;
@@ -17,7 +17,8 @@ namespace WeatherService.Tests.Services
         {
             var inMemorySettings = new Dictionary<string, string>
         {
-            { "OpenWeatherMap:ApiKey", "mock-api-key" }
+            { "OpenWeatherMap:ApiKey", "mock-api-key" },
+            { "OpenWeatherMap:BaseUrl", "https://api.openweathermap.org" }
         };
             _config = new ConfigurationBuilder()
                 .AddInMemoryCollection(inMemorySettings)
@@ -75,40 +76,27 @@ namespace WeatherService.Tests.Services
             Assert.True(result.RainExpected);
         }
         [Fact]
-        public async Task GetCurrentWeatherAsync_InvalidZip_Throws()
+        public async Task GetCurrentWeatherAsync_InvalidZip_ThrowsLocationNotFoundException()
         {
             var mockHttp = new MockHttpMessageHandler();
             mockHttp.When("*weather*").Respond(System.Net.HttpStatusCode.NotFound);
 
             var service = new WeatherProvider(new HttpClient(mockHttp), _config);
 
-            await Assert.ThrowsAsync<ArgumentException>(() =>
+            await Assert.ThrowsAsync<LocationNotFoundException>(() =>
                 service.GetCurrentWeatherAsync("InvalidZip", "fahrenheit"));
         }
 
         [Fact]
-        public async Task GetAverageWeatherAsync_InvalidZip_Throws()
+        public async Task GetAverageWeatherAsync_InvalidZip_ThrowsLocationNotFoundException()
         {
             var mockHttp = new MockHttpMessageHandler();
             mockHttp.When("*forecast*").Respond(System.Net.HttpStatusCode.NotFound);
 
             var service = new WeatherProvider(new HttpClient(mockHttp), _config);
 
-            await Assert.ThrowsAsync<ArgumentException>(() =>
+            await Assert.ThrowsAsync<LocationNotFoundException>(() =>
                 service.GetAverageWeatherAsync("InvalidZip", "fahrenheit", 3));
-        }
-        [Theory]
-        [InlineData(15)]
-        [InlineData(10)]
-        public async Task GetAverageWeatherAsync_InvalidTimePeriod_Throws(int period)
-        {
-            var mockHttp = new MockHttpMessageHandler();
-            var service = new WeatherProvider(new HttpClient(mockHttp), _config);
-
-            var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-                service.GetAverageWeatherAsync("12345", "celsius", period));
-
-            Assert.Equal("timePeriod must be 2–5", ex.Message);
         }
     }
 }

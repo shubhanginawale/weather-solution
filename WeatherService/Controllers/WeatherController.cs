@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using WeatherService.Services.Interfaces;
+using WeatherService.Models;
+using WeatherService.Exceptions;
 
 namespace WeatherService.Controllers
 {
@@ -16,48 +18,66 @@ namespace WeatherService.Controllers
         {
             try
             {
+                //if (!(units == "C" || units =="F")) //commenting it out as it was not part of the requirement 
+                //{
+                //    return BadRequest("Units can either be 'C' - celcius or 'F' fahrenheit");
+                //}
+
                 var result = await _weatherProvider.GetCurrentWeatherAsync(zipCode, units);
-                return Ok(new //This can be created as separate response model 'CurrentWeatherResponse' if being used at multiple places or methods.
+                var response = new CurrentWeatherResponse
                 {
-                    currentTemperature = result.Temperature,
-                    unit = result.Unit,
-                    lat = result.Latitude,
-                    lon = result.Longitude,
-                    rainPossibleToday = result.RainExpected
-                });
+                    CurrentTemperature = result.Temperature,
+                    Unit = result.Unit,
+                    Lat = result.Latitude,
+                    Lon = result.Longitude,
+                    RainPossibleToday = result.RainExpected
+                };
+                return Ok(response);
+
             }
-            catch (ArgumentException)
+            catch (LocationNotFoundException)
             {
-                return BadRequest("Invalid zip code or parameters");
+                return BadRequest("Location not found");
             }
-            catch
+            catch (Exception)
             {
-                return StatusCode(500, "Server error");
+                return StatusCode(500, "An Internal Server error occurred while processing your request");
             }
         }
 
         [HttpGet("Average/{zipCode}")]
         public async Task<IActionResult> GetAverage(string zipCode, [FromQuery] string units, [FromQuery] int timePeriod)
         {
+
             try
             {
-                var result = await _weatherProvider.GetAverageWeatherAsync(zipCode, units, timePeriod);
-                return Ok(new //This can be created as separate response model 'AverageWeatherResponse, if being used at multiple places or methods.
+                // Validate time period before calling the service 
+                if (timePeriod < 2 || timePeriod > 5)
                 {
-                    averageTemperature = result.Temperature,
-                    unit = result.Unit,
-                    lat = result.Latitude,
-                    lon = result.Longitude,
-                    rainPossibleInPeriod = result.RainExpected
-                });
+                   return BadRequest("Time period must be between 2 and 5 days");
+                }
+                //if (!(units == "C" || units =="F")) //commenting it out as it was not part of the requirement 
+                //{
+                //    return BadRequest("Units can either be 'C' - celcius or 'F' fahrenheit");
+                //}
+                var result = await _weatherProvider.GetAverageWeatherAsync(zipCode, units, timePeriod);
+                var response = new AverageWeatherResponse
+                {
+                    AverageTemperature = result.Temperature,
+                    Unit = result.Unit,
+                    Lat = result.Latitude,
+                    Lon = result.Longitude,
+                    RainPossibleInPeriod = result.RainExpected
+                };
+                return Ok(response);
             }
-            catch (ArgumentException e)
+            catch (LocationNotFoundException)
             {
-                return BadRequest(e.Message);
+                return BadRequest("Location not found");
             }
-            catch
+            catch (Exception)
             {
-                return StatusCode(500, "Server error");
+                return StatusCode(500, "An Internal Server error occurred while processing your request");
             }
         }
     }

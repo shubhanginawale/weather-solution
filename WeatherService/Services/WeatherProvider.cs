@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
+using WeatherService.Exceptions;
 using WeatherService.Models;
 using WeatherService.Services.Interfaces;
 
@@ -9,114 +11,133 @@ namespace WeatherService.Services
 
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
+        private readonly string _baseUrl;
+        private const string Fahrenheit = "fahrenheit";
 
         public WeatherProvider(HttpClient httpClient, IConfiguration config)
         {
             _httpClient = httpClient;
             _apiKey = config["OpenWeatherMap:ApiKey"];
+            _baseUrl = config["OpenWeatherMap:BaseUrl"];
         }
 
         public async Task<WeatherResult> GetCurrentWeatherAsync(string zipCode, string unit)
         {
-            var unitParam = unit.ToLower() == "fahrenheit" ? "imperial" : "metric";
+            var unitParam = unit.ToLower() == Fahrenheit ? "imperial" : "metric";
             var response = await _httpClient.GetAsync(
-                $"https://api.openweathermap.org/data/2.5/weather?zip={zipCode}&units={unitParam}&appid={_apiKey}");
+                $"{_baseUrl}/data/2.5/weather?zip={zipCode}&units={unitParam}&appid={_apiKey}");
 
-            if (!response.IsSuccessStatusCode)
-                throw new ArgumentException("Invalid zip code");
+            if (!response.IsSuccessStatusCode && response.StatusCode == HttpStatusCode.NotFound )
+                throw new LocationNotFoundException("Location not found");
 
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            return new WeatherResult
-            {
-                Temperature = root.GetProperty("main").GetProperty("temp").GetSingle(),
-                Unit = unit.ToLower() == "fahrenheit" ? "F" : "C",
-                Latitude = root.GetProperty("coord").GetProperty("lat").GetSingle(),
-                Longitude = root.GetProperty("coord").GetProperty("lon").GetSingle(),
-                RainExpected = root.TryGetProperty("rain", out _) ||
-                                root.GetProperty("weather")[0].GetProperty("main").GetString()?.ToLower().Contains("rain") == true
-            };
+            return ParseCurrentWeatherSafe(root, unit);
         }
 
         public async Task<WeatherResult> GetAverageWeatherAsync(string zipCode, string unit, int days)
         {
-            if (days < 2 || days > 5) throw new ArgumentException("timePeriod must be 2–5");
 
-            var unitParam = unit.ToLower() == "fahrenheit" ? "imperial" : "metric";
+            var unitParam = unit.ToLower() == Fahrenheit ? "imperial" : "metric";
             var response = await _httpClient.GetAsync(
-                $"https://api.openweathermap.org/data/2.5/forecast?zip={zipCode}&units={unitParam}&cnt={days * 8}&appid={_apiKey}");
+                $"{_baseUrl}/data/2.5/forecast?zip={zipCode}&units={unitParam}&cnt={days * 8}&appid={_apiKey}");
 
-            if (!response.IsSuccessStatusCode)
-                throw new ArgumentException("Invalid zip code");
+            if (!response.IsSuccessStatusCode && response.StatusCode == HttpStatusCode.NotFound)
+                throw new LocationNotFoundException("Location not found");
 
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            var temps = root.GetProperty("list").EnumerateArray().Select(x => x.GetProperty("main").GetProperty("temp").GetSingle());
-            var avgTemp = temps.Average();
+            return ParseAverageWeatherSafe(root, unit);
 
-            var rain = root.GetProperty("list").EnumerateArray().Any(x => x.TryGetProperty("rain", out _));
+        }
+
+        private WeatherResult ParseCurrentWeatherSafe(JsonElement root, string unit)
+        {
+            float temp = 0, lat = 0, lon = 0;
+            bool rainExpected = false;
+
+            if (root.TryGetProperty("main", out var mainProp) &&
+                mainProp.TryGetProperty("temp", out var tempProp) &&
+                tempProp.TryGetSingle(out var t))
+            {
+                temp = t;
+            }
+
+            if (root.TryGetProperty("coord", out var coordProp))
+            {
+                if (coordProp.TryGetProperty("lat", out var latProp) &&
+                    latProp.TryGetSingle(out var latitude))
+                    lat = latitude;
+
+                if (coordProp.TryGetProperty("lon", out var lonProp) &&
+                    lonProp.TryGetSingle(out var longitude))
+                    lon = longitude;
+            }
+
+            if (root.TryGetProperty("rain", out _))
+                rainExpected = true;
+            else if (root.TryGetProperty("weather", out var weatherProp) &&
+                     weatherProp.ValueKind == JsonValueKind.Array &&
+                     weatherProp.GetArrayLength() > 0 &&
+                     weatherProp[0].TryGetProperty("main", out var mainWeatherProp))
+            {
+                var mainWeatherStr = mainWeatherProp.GetString();
+                if (!string.IsNullOrEmpty(mainWeatherStr) && mainWeatherStr.ToLower().Contains("rain"))
+                    rainExpected = true;
+            }
+
+            return new WeatherResult
+            {
+                Temperature = temp,
+                Unit = unit.ToLower() == "fahrenheit" ? "F" : "C",
+                Latitude = lat,
+                Longitude = lon,
+                RainExpected = rainExpected
+            };
+        }
+
+        private WeatherResult ParseAverageWeatherSafe(JsonElement root, string unit)
+        {
+            var temps = root.TryGetProperty("list", out var listProp) && listProp.ValueKind == JsonValueKind.Array
+                ? listProp.EnumerateArray()
+                    .Select(x => x.TryGetProperty("main", out var mainProp) &&
+                                 mainProp.TryGetProperty("temp", out var tempProp) &&
+                                 tempProp.TryGetSingle(out var val) ? val : (float?)null)
+                    .Where(v => v.HasValue)
+                    .Select(v => v.Value)
+                : Enumerable.Empty<float>();
+
+            float avgTemp = temps.Any() ? temps.Average() : 0;
+
+            float lat = 0, lon = 0;
+            if (root.TryGetProperty("city", out var cityProp) &&
+                cityProp.TryGetProperty("coord", out var coordProp))
+            {
+                if (coordProp.TryGetProperty("lat", out var latProp) &&
+                    latProp.TryGetSingle(out var latitude))
+                    lat = latitude;
+
+                if (coordProp.TryGetProperty("lon", out var lonProp) &&
+                    lonProp.TryGetSingle(out var longitude))
+                    lon = longitude;
+            }
+
+            bool rainExpected = root.TryGetProperty("list", out var weatherListProp) && weatherListProp.ValueKind == JsonValueKind.Array &&
+                                weatherListProp.EnumerateArray().Any(x => x.TryGetProperty("rain", out _));
 
             return new WeatherResult
             {
                 Temperature = avgTemp,
                 Unit = unit.ToLower() == "fahrenheit" ? "F" : "C",
-                Latitude = root.GetProperty("city").GetProperty("coord").GetProperty("lat").GetSingle(),
-                Longitude = root.GetProperty("city").GetProperty("coord").GetProperty("lon").GetSingle(),
-                RainExpected = rain
+                Latitude = lat,
+                Longitude = lon,
+                RainExpected = rainExpected
             };
         }
-
-        //public async Task<AverageWeatherResponse> GetAverageWeatherAsync(string zipcode, string units, int timePeriod)
-        //{
-        //    if (timePeriod < 2 || timePeriod > 5)
-        //        throw new ArgumentException("timePeriod must be 2-5 days.");
-
-        //    // Fetch forecast data
-        //    var forecastData = await _clientService.GetForecastDataAsync(zipcode, units);
-
-        //    // Filter data for the next `timePeriod` days
-        //    var endDate = DateTime.UtcNow.AddDays(timePeriod);
-        //    var relevantForecasts = forecastData.Forecasts
-        //        .Where(f => f.DateTime <= endDate)
-        //        .ToList();
-
-        //    if (!relevantForecasts.Any())
-        //        throw new InvalidOperationException("No forecast data available for the period.");
-
-        //    // Calculate averages
-        //    double avgTemp = relevantForecasts.Average(f => f.Main.Temp);
-        //    bool rainPossible = relevantForecasts.Any(f =>
-        //        f.Weather.Any(w => w.Main == "Rain"));
-
-        //    return new AverageWeatherResponse
-        //    {
-        //        AverageTemperature = avgTemp,
-        //        Unit = units == "fahrenheit" ? "F" : "C",
-        //        Lat = forecastData.City?.Coord.Lat ?? 0,  // Assume City is part of the response
-        //        Lon = forecastData.City?.Coord.Lon ?? 0,
-        //        RainPossibleInPeriod = rainPossible
-        //    };
-        //};
-        //}
-
-        //public async Task<CurrentWeatherResponse> GetCurrentWeatherAsync(string zipcode, string units)
-        //{
-        //    var data = await _clientService.GetWeatherDataAsync(zipcode, units);
-
-        //    return new CurrentWeatherResponse
-        //    {
-        //        CurrentTemperature = data.Main.Temp,
-        //        Unit = units == "fahrenheit" ? "F" : "C",
-        //        Lat = data.Coord.Lat,
-        //        Lon = data.Coord.Lon,
-        //        RainPossibleToday = data.Weather.Any(w => w.Main == "Rain")
-        //    };
-        //}
-
     }  
    
 }

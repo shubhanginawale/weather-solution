@@ -1,11 +1,12 @@
 ﻿namespace WeatherCLI.Models
 {
-    public class WeatherResult
+    public class WeatherResponse
     {
-        public float Temperature { get; set; }
+       
         public string Unit { get; set; } = "C";
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public bool RainExpected { get; set; }
+        public double Lat { get; set; }
+        public double Lon { get; set; }
+        public string ZipCode { get; set; } = "";
+
     }
 }

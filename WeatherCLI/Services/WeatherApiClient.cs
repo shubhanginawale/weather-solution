@@ -19,18 +19,36 @@ namespace WeatherCLI.Services
             _httpClient.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
         }
 
-        public async Task<WeatherResult> GetCurrentWeatherAsync(string zip, string units)
+        public async Task<CurrentWeatherResponse> GetCurrentWeatherAsync(string zip, string units)
         {
+            string unitQuery = units.ToLower() switch
+            {
+                "fahrenheit" => "imperial",
+                _ => "metric"
+            };
             var response = await _httpClient.GetAsync($"{BaseUrl}current/{zip}?units={units}");
+            
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<WeatherResult>() ?? throw new Exception("Empty response");
+
+            var result = await response.Content.ReadFromJsonAsync<CurrentWeatherResponse>() ?? throw new Exception("Empty response");
+            result.ZipCode = zip;
+            return result;
+            
         }
 
-        public async Task<WeatherResult> GetAverageWeatherAsync(string zip, string units, int days)
+        public async Task<AverageWeatherResponse> GetAverageWeatherAsync(string zip, string units, int days)
         {
+            string unitQuery = units.ToLower() switch
+            {
+                "fahrenheit" => "imperial",
+                _ => "metric"
+            };
             var response = await _httpClient.GetAsync($"{BaseUrl}average/{zip}?units={units}&timePeriod={days}");
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<WeatherResult>() ?? throw new Exception("Empty response");
+            var result = await response.Content.ReadFromJsonAsync<AverageWeatherResponse>() ?? throw new Exception("Empty response");
+            result.ZipCode = zip;
+            return result;
+            
         }
     }
 }

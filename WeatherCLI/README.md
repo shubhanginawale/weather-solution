@@ -6,25 +6,22 @@ A .NET 8 console application that consumes the WeatherService API and displays c
 
 ### Get current weather
 ```bash
-weatherCLI get-current-weather <zip> <units> [--output text|json|yaml] [--apikey <key>]
+dotnet run --project ./weathercli get-current-weather <zip> <units> [--output text|json|yaml] [--apikey <key>]
 ```
 
 ### Get average weather
 ```bash
-weatherCLI get-average-weather <zip> <units> <days> [--output text|json|yaml] [--apikey <key>]
+dotnet run --project ./weathercli get-average-weather <zip> <units> <days> [--output text|json|yaml] [--apikey <key>]
 ```
 
 ### Login (store API key)
 ```bash
-weatherCLI login <apikey>
+dotnet run --project weathercli -- login <apikey>
 ```
-Once stored, you don’t need to pass `--apikey` again.
-
-
 ##  Authentication
 This CLI requires an API key for the WeatherService API. Either:
 - Pass it via `--apikey`, or
-- Store it using `weatherCLI login <key>`
+- Store it using `dotnet run --project weathercli -- login <key>`
 
 ##  Output Formats
 - `text` – human-friendly summary (default)
@@ -38,18 +35,19 @@ cd weatherCLI
  dotnet build
 
 # Run (after login)
-dotnet run -- get-current-weather 10001 celsius
+dotnet run --project ./weathercli -- get-average-weather 10001 celsius --output yaml --apikey yourapikey
 ```
 
 Or directly:
 ```bash
-dotnet run -- get-average-weather 10001 fahrenheit 3 --output yaml
+dotnet run --project ./weathercli -- get-average-weather 10001 fahrenheit 3 --output yaml --apikey yourapikey
 ```
 
 ## Example
 ```bash
-weatherCLI login your-api-key
-weatherCLI get-current-weather 90210 celsius --output text
+dotnet run --project weathercli -- login DCU-WeatherAPIKey-2025
+dotnet run --project ./weathercli -- get-current-weather 01720 fahrenheit --output json --apikey DCU-WeatherAPIKey-2025
+dotnet run --project ./weathercli -- get-average-weather 01720 fahrenheit 4 --output json --apikey DCU-WeatherAPIKey-2025
 ```
 
 ## Project Structure

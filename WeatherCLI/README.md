@@ -54,7 +54,7 @@ dotnet run --project ./weathercli -- get-average-weather 01720 fahrenheit 4 --ou
 ```
 weatherCLI/
 ├── Commands/               # System.CommandLine commands
-├── Models/                 # WeatherResult shared with API
+├── Models/                 # WeatherResponses shared with API
 ├── Helpers/                # Output formatting + login support
 ├── Services/               # API client for WeatherService
 ├── Program.cs              # Entry point

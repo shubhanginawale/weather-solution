@@ -25,7 +25,7 @@ namespace WeatherCLI.Commands
             {
                 var client = new WeatherApiClient(apikey);
                 var weather = await client.GetCurrentWeatherAsync(zip, units);
-                OutputFormatter.Print(weather, output);
+                OutputFormatter.Print(weather, output,zip);
             },
             zipArg, unitsArg, outputOpt, apikeyOpt);
 

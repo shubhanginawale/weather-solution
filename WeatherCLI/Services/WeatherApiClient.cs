@@ -31,7 +31,6 @@ namespace WeatherCLI.Services
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<CurrentWeatherResponse>() ?? throw new Exception("Empty response");
-            result.ZipCode = zip;
             return result;
             
         }
@@ -46,7 +45,6 @@ namespace WeatherCLI.Services
             var response = await _httpClient.GetAsync($"{BaseUrl}average/{zip}?units={units}&timePeriod={days}");
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<AverageWeatherResponse>() ?? throw new Exception("Empty response");
-            result.ZipCode = zip;
             return result;
             
         }

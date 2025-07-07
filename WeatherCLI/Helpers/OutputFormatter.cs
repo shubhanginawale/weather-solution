@@ -7,7 +7,7 @@ namespace WeatherCLI.Helpers
 {
     public class OutputFormatter
     {
-        public static void Print(CurrentWeatherResponse data, string format)
+        public static void Print(CurrentWeatherResponse data, string format, string? zipCode = null)
         {
             switch (format.ToLower())
             {
@@ -25,13 +25,14 @@ namespace WeatherCLI.Helpers
                 case "text":
                 default:
                     
-                    Console.WriteLine($"Location: {data.ZipCode}");
+                    if (!string.IsNullOrWhiteSpace(zipCode))
+                         Console.WriteLine($"Location: {zipCode}");
                     Console.WriteLine($"Current Temperature: {data.CurrentTemperature}{data.Unit}");
                     Console.WriteLine($"Rain Possible Today: {(data.RainPossibleToday ? "Yes" : "No")}");
                     break;
             }
         }
-        public static void Print(AverageWeatherResponse data, string format)
+        public static void Print(AverageWeatherResponse data, string format, string? zipCode = null)
         {
             switch (format.ToLower())
             {
@@ -48,8 +49,9 @@ namespace WeatherCLI.Helpers
 
                 case "text":
                 default:
-                    
-                    Console.WriteLine($"Location: {data.ZipCode}");
+
+                    if (!string.IsNullOrWhiteSpace(zipCode))
+                        Console.WriteLine($"Location: {zipCode}");
                     Console.WriteLine($"Average Temperature: {data.AverageTemperature}{data.Unit}");
                     Console.WriteLine($"Rain Expected During Period: {(data.RainPossibleInPeriod ? "Yes" : "No")}");
                     break;
